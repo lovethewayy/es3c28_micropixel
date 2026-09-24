@@ -95,6 +95,21 @@ persistence, Wi-Fi loss/recovery with 4G connected, both-off behavior, actual SI
 over 4G, no-SIM recovery, and shutdown/sleep during traffic. Neither build success
 nor the controller tests prove modem or power timing on hardware.
 
+## ES3C28P display bring-up
+
+The LCDWIKI ES3C28P profile targets the 2.8" IPS ESP32-S3 display module
+(ILI9341V + FT6336G + ES8311, N16R8). It reuses the shared `esp32-s3-common`
+Landscape320 state, LVGL display and PSRAM displayed shadow; the board layer
+owns only pin mapping, the shared I2C bus (touch + codec), the ILI9341 SPI
+panel, the LEDC backlight and the ES8311/I2S audio sink. The 240x320 portrait
+panel is rotated with `swap_xy` to the 320x240 landscape Host UI profile.
+Registered services are ILI9341 display, FT6336 touch, ES8311 audio, native
+Wi-Fi, the BOOT key and the single IO2 expansion GPIO. SD card, battery ADC,
+RGB LED and microphone remain outside the profile. On first bring-up verify
+color order, inversion, I2S DO/DI and the codec I2C wiring against the board;
+see
+[docs/development/es3c28p-bring-up.zh-CN.md](../../../../../docs/development/es3c28p-bring-up.zh-CN.md).
+
 ## Required files and registration
 
 1. Add `boards/<board>/CMakeLists.txt` and the implementation that provides the

@@ -9,9 +9,12 @@ szpi_port_override="${SZPI_S3_PORT:-}"
 szpi_baud_override="${SZPI_S3_BAUD:-}"
 cores3_port_override="${CORES3_S3_PORT:-}"
 cores3_baud_override="${CORES3_S3_BAUD:-}"
+es3c28p_port_override="${ES3C28P_S3_PORT:-}"
+es3c28p_baud_override="${ES3C28P_S3_BAUD:-}"
 s3_host_build_dir_override="${S3_HOST_BUILD_DIR:-}"
 szpi_host_build_dir_override="${SZPI_S3_HOST_BUILD_DIR:-}"
 cores3_host_build_dir_override="${CORES3_S3_HOST_BUILD_DIR:-}"
+es3c28p_host_build_dir_override="${ES3C28P_S3_HOST_BUILD_DIR:-}"
 s3_apps_output_dir_override="${S3_APPS_OUTPUT_DIR:-}"
 xtensa_wamrc_override="${XTENSA_WAMRC:-}"
 remote_control_host_override="${MICROPIXEL_REMOTE_CONTROL_HOST:-}"
@@ -45,6 +48,12 @@ fi
 if [[ -n "$cores3_baud_override" ]]; then
     CORES3_S3_BAUD="$cores3_baud_override"
 fi
+if [[ -n "$es3c28p_port_override" ]]; then
+    ES3C28P_S3_PORT="$es3c28p_port_override"
+fi
+if [[ -n "$es3c28p_baud_override" ]]; then
+    ES3C28P_S3_BAUD="$es3c28p_baud_override"
+fi
 if [[ -n "$s3_host_build_dir_override" ]]; then
     S3_HOST_BUILD_DIR="$s3_host_build_dir_override"
 fi
@@ -53,6 +62,9 @@ if [[ -n "$szpi_host_build_dir_override" ]]; then
 fi
 if [[ -n "$cores3_host_build_dir_override" ]]; then
     CORES3_S3_HOST_BUILD_DIR="$cores3_host_build_dir_override"
+fi
+if [[ -n "$es3c28p_host_build_dir_override" ]]; then
+    ES3C28P_S3_HOST_BUILD_DIR="$es3c28p_host_build_dir_override"
 fi
 if [[ -n "$s3_apps_output_dir_override" ]]; then
     S3_APPS_OUTPUT_DIR="$s3_apps_output_dir_override"
@@ -81,13 +93,14 @@ apps_store="$apps_output_dir/app-store.bin"
 host_build_dir="${S3_HOST_BUILD_DIR:-$workspace_root/build/host-esp32s3-box-3}"
 szpi_host_build_dir="${SZPI_S3_HOST_BUILD_DIR:-$workspace_root/build/host-esp32s3-szpi}"
 cores3_host_build_dir="${CORES3_S3_HOST_BUILD_DIR:-$workspace_root/build/host-esp32s3-cores3}"
+es3c28p_host_build_dir="${ES3C28P_S3_HOST_BUILD_DIR:-$workspace_root/build/host-esp32s3-es3c28p}"
 xtensa_wamrc="${XTENSA_WAMRC:-$workspace_root/build/tools/wamrc-xtensa/wamrc}"
 
 usage() {
     cat <<'EOF'
 Usage: bash tools/s3.sh COMMAND [BOARD] [PORT] [--reset]
 
-Boards: box3 (default), szpi, cores3
+Boards: box3 (default), szpi, cores3, es3c28p
 
 Common ESP32-S3 commands:
   build-null          Compile the ESP32-S3 hardware-independent Null gate.
@@ -116,9 +129,14 @@ Compatibility aliases:
   flash-cores3 [PORT] Alias for flash-host cores3 [PORT].
   monitor-cores3 [PORT] [--reset]
   port-cores3 [PORT]
+  build-es3c28p       Alias for build-host es3c28p.
+  flash-es3c28p [PORT] Alias for flash-host es3c28p [PORT].
+  monitor-es3c28p [PORT] [--reset]
+  port-es3c28p [PORT]
 
-S3_PORT/S3_BAUD, SZPI_S3_PORT/SZPI_S3_BAUD, CORES3_S3_PORT/CORES3_S3_BAUD
-and MICROPIXEL_REMOTE_CONTROL_* may be set in the repository-root .env.
+S3_PORT/S3_BAUD, SZPI_S3_PORT/SZPI_S3_BAUD, CORES3_S3_PORT/CORES3_S3_BAUD,
+ES3C28P_S3_PORT/ES3C28P_S3_BAUD and MICROPIXEL_REMOTE_CONTROL_* may be set in
+the repository-root .env.
 Explicit environment variables and a command-line PORT take precedence.
 Each board profile selects its own panel, touch, codec, power and sensor
 wiring while reusing the ESP32-S3 Runtime and Xtensa Guest baseline.
@@ -333,7 +351,7 @@ resolve_profile_port() {
 
 is_board_name() {
     case "${1:-}" in
-        box3 | esp-box-3 | szpi | szpi-esp32s3 | cores3 | m5stack-cores3) return 0 ;;
+        box3 | esp-box-3 | szpi | szpi-esp32s3 | cores3 | m5stack-cores3 | es3c28p | es3c28p-esp32s3) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -364,8 +382,16 @@ select_board() {
             board_defaults=(sdkconfig.s3.defaults sdkconfig.s3-cores3.defaults)
             board_baud="${CORES3_S3_BAUD:-921600}"
             ;;
+        es3c28p | es3c28p-esp32s3)
+            board_name="es3c28p"
+            board_title="LCDWIKI ES3C28P"
+            board_profile="es3c28p-esp32s3"
+            board_build_dir="$es3c28p_host_build_dir"
+            board_defaults=(sdkconfig.s3.defaults sdkconfig.s3-es3c28p.defaults)
+            board_baud="${ES3C28P_S3_BAUD:-921600}"
+            ;;
         *)
-            echo "Unknown ESP32-S3 board: $1 (expected box3, szpi, or cores3)" >&2
+            echo "Unknown ESP32-S3 board: $1 (expected box3, szpi, cores3, or es3c28p)" >&2
             exit 2
             ;;
     esac
@@ -507,6 +533,11 @@ case "$command_name" in
         require_idf
         build_board cores3
         ;;
+    build-es3c28p)
+        [[ $# -eq 0 ]] || { usage >&2; exit 2; }
+        require_idf
+        build_board es3c28p
+        ;;
     build-wamrc)
         [[ $# -eq 0 ]] || { usage >&2; exit 2; }
         bash "$workspace_root/tools/build_wamrc_xtensa.sh"
@@ -536,6 +567,11 @@ case "$command_name" in
         [[ $# -le 1 ]] || { usage >&2; exit 2; }
         require_idf
         flash_board cores3 "${1:-}"
+        ;;
+    flash-es3c28p)
+        [[ $# -le 1 ]] || { usage >&2; exit 2; }
+        require_idf
+        flash_board es3c28p "${1:-}"
         ;;
     flash-apps)
         split_optional_board "$@"
@@ -568,6 +604,11 @@ case "$command_name" in
         require_idf
         monitor_profile m5stack-cores3 "$@"
         ;;
+    monitor-es3c28p)
+        [[ $# -le 2 ]] || { usage >&2; exit 2; }
+        require_idf
+        monitor_profile es3c28p-esp32s3 "$@"
+        ;;
     port)
         split_optional_board "$@"
         [[ ${#remaining_arguments[@]} -le 1 ]] || { usage >&2; exit 2; }
@@ -583,6 +624,11 @@ case "$command_name" in
         [[ $# -le 1 ]] || { usage >&2; exit 2; }
         require_idf
         resolve_profile_port m5stack-cores3 "${1:-${CORES3_S3_PORT:-}}"
+        ;;
+    port-es3c28p)
+        [[ $# -le 1 ]] || { usage >&2; exit 2; }
+        require_idf
+        resolve_profile_port es3c28p-esp32s3 "${1:-${ES3C28P_S3_PORT:-}}"
         ;;
     *)
         usage >&2

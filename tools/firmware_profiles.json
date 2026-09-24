@@ -157,5 +157,26 @@
     "preview": true,
     "flash": true,
     "monitor": true
+  },
+  "es3c28p-esp32s3": {
+    "description": "LCDWIKI ES3C28P Host",
+    "target": "esp32s3",
+    "chip_markers": [
+      "ESP32-S3"
+    ],
+    "build_dir": "build/host-esp32s3-es3c28p",
+    "build_dir_env": "ES3C28P_S3_HOST_BUILD_DIR",
+    "sdkconfig_name": "sdkconfig.release",
+    "sdkconfig_defaults": [
+      "firmware/espressif/sdkconfig.defaults",
+      "firmware/espressif/sdkconfig.s3.defaults",
+      "firmware/espressif/sdkconfig.s3-es3c28p.defaults"
+    ],
+    "port_env": "ES3C28P_S3_PORT",
+    "baud_env": "ES3C28P_S3_BAUD",
+    "default_baud": 921600,
+    "preview": true,
+    "flash": true,
+    "monitor": true
   }
 }

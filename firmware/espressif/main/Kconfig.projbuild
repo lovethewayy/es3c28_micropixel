@@ -186,6 +186,16 @@ menu "MicroPixel board backends"
             microphone, RTC, proximity sensor and SD card remain outside this
             board profile.
 
+    config MICROPIXEL_BOARD_ES3C28P
+        bool "LCDWIKI ES3C28P board profile"
+        depends on IDF_TARGET_ESP32S3
+        help
+            Bring up the LCDWIKI ES3C28P 2.8" ESP32-S3 display module's
+            ILI9341V display, FT6336G touch controller, ES8311 audio output,
+            native Wi-Fi, BOOT key, expansion GPIO, Guest Graphics and App
+            Hall. SD card, battery ADC, RGB LED and microphone remain outside
+            this board profile.
+
     config MICROPIXEL_BOARD_NULL
         bool "Null board"
         help
@@ -253,6 +263,14 @@ menu "MicroPixel board backends"
         default n
         help
             Let CPU rendering overlap the previous ILI9342C SPI transfer. This
+            remains partial rendering and does not allocate two framebuffers.
+
+    config MICROPIXEL_ES3C28P_S3_LVGL_DOUBLE_BUFFER
+        bool "Use two LVGL partial buffers on LCDWIKI ES3C28P"
+        depends on MICROPIXEL_BOARD_ES3C28P
+        default n
+        help
+            Let CPU rendering overlap the previous ILI9341 SPI transfer. This
             remains partial rendering and does not allocate two framebuffers.
 
     config MICROPIXEL_MOSAICO_LVGL_DOUBLE_BUFFER

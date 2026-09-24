@@ -1,0 +1,75 @@
+name: Build ES3C28P firmware (download bin)
+
+# ============================================================
+#  像"小智"一样：不用在自己电脑装工具链，云端编译，直接下载 bin。
+#
+#  用法：
+#  1) 把本文件放到仓库  .github/workflows/es3c28p-build.yml
+#  2) 把整个源码工程推送到你自己的 GitHub 仓库（含子模块内容）
+#  3) 打开仓库 Actions 页 -> 左侧 "Build ES3C28P firmware" -> Run workflow
+#  4) 等约 30~60 分钟，跑完后在本次运行页底部 Artifacts 下载
+#     "micropixel-es3c28p-full"（内含 micropixel-full.bin，直接烧录）
+# ============================================================
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: es3c28p-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container:
+      image: espressif/idf:release-v6.1   # 官方镜像，已含 ESP-IDF 6.1 + esp32s3 工具链
+      options: --user root
+    env:
+      IDF_PATH: /opt/esp/idf
+      WASI_SDK_PATH: /opt/wasi-sdk
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Allow git in container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install build tools (cmake, ninja, gcc)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake ninja-build ca-certificates
+
+      - name: Install WASI SDK 33
+        run: |
+          mkdir -p /opt/wasi-sdk
+          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33.0/wasi-sdk-33.0-linux.tar.gz -o /tmp/wasi.tar.gz
+          tar -xzf /tmp/wasi.tar.gz -C /opt/wasi-sdk --strip-components=1
+          rm -f /tmp/wasi.tar.gz
+          /opt/wasi-sdk/bin/clang --version | head -1
+
+      - name: Install Python deps into IDF environment
+        run: |
+          . /opt/esp/idf/export.sh
+          python -m pip install -r requirements-dev.txt
+
+      - name: Build Xtensa wamrc (one-time, heavy LLVM build)
+        run: |
+          . /opt/esp/idf/export.sh
+          bash tools/build_wamrc_xtensa.sh
+
+      - name: Build Host + Apps + full image for ES3C28P
+        run: |
+          . /opt/esp/idf/export.sh
+          export WASI_SDK_PATH=/opt/wasi-sdk
+          bash tools/s3.sh build-release es3c28p
+
+      - name: Upload full flashable image
+        uses: actions/upload-artifact@v4
+        with:
+          name: micropixel-es3c28p-full
+          path: build/host-esp32s3-es3c28p/micropixel-full.bin
+          if-no-files-found: error
