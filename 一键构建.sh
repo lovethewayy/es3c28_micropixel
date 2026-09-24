@@ -11,6 +11,7 @@ set -euo pipefail
 # ---- 可改的配置 ----
 ESP_IDF_BRANCH="v6.1"
 ESP_IDF_DIR="${ESP_IDF_DIR:-$HOME/esp/esp-idf}"
+WASI_SDK_TAG="wasi-sdk-33"
 WASI_SDK_VERSION="wasi-sdk-33.0"
 WASI_SDK_DIR="${WASI_SDK_DIR:-$HOME/wasi-sdk-33.0}"
 
@@ -53,7 +54,12 @@ if [ ! -d "$WASI_SDK_DIR" ]; then
         Linux)  plat="linux";;
         *) echo "仅支持 macOS/Linux" >&2; exit 2;;
     esac
-    url="https://github.com/WebAssembly/wasi-sdk/releases/download/${WASI_SDK_VERSION}/${WASI_SDK_VERSION}-${plat}.tar.gz"
+    case "$(uname -m)" in
+        x86_64|amd64) arch="x86_64";;
+        arm64|aarch64) arch="arm64";;
+        *) echo "不支持的 CPU 架构: $(uname -m)" >&2; exit 2;;
+    esac
+    url="https://github.com/WebAssembly/wasi-sdk/releases/download/${WASI_SDK_TAG}/${WASI_SDK_VERSION}-${arch}-${plat}.tar.gz"
     echo "    下载 $url"
     curl -fL "$url" -o /tmp/wasi-sdk.tar.gz
     mkdir -p "$WASI_SDK_DIR"

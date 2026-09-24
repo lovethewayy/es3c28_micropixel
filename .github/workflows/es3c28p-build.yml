@@ -46,7 +46,7 @@ jobs:
       - name: Install WASI SDK 33
         run: |
           mkdir -p /opt/wasi-sdk
-          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33.0/wasi-sdk-33.0-linux.tar.gz -o /tmp/wasi.tar.gz
+          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz -o /tmp/wasi.tar.gz
           tar -xzf /tmp/wasi.tar.gz -C /opt/wasi-sdk --strip-components=1
           rm -f /tmp/wasi.tar.gz
           /opt/wasi-sdk/bin/clang --version | head -1
