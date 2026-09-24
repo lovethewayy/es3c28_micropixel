@@ -56,15 +56,33 @@ jobs:
           . /opt/esp/idf/export.sh
           python -m pip install -r requirements-dev.txt
 
+      - name: Restore Xtensa LLVM build cache
+        id: llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            es3c28p-wamrc-llvm-
+
       - name: Build Xtensa wamrc (one-time, heavy LLVM build)
         run: |
           . /opt/esp/idf/export.sh
           bash tools/build_wamrc_xtensa.sh
 
+      - name: Save Xtensa LLVM build cache
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+
       - name: Build Host + Apps + full image for ES3C28P
         run: |
           . /opt/esp/idf/export.sh
           export WASI_SDK_PATH=/opt/wasi-sdk
+          # 云端无 Remote-Control 服务器地址；生成离线镜像即可本地运行。
+          export MICROPIXEL_RELEASE_ALLOW_OFFLINE=1
           bash tools/s3.sh build-release es3c28p
 
       - name: Upload full flashable image
