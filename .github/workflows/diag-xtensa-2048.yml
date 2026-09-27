@@ -81,3 +81,52 @@ jobs:
           run_case "size-level=3 (like other apps)" --opt-level=3 --call-stack-features=ip,func-idx --size-level=3
           run_case "minimal" --opt-level=3
           echo "=========== DONE"
+
+      - name: Variant experiments - locate source trigger
+        run: |
+          set +e
+          . /opt/esp/idf/export.sh
+          export WASI_SDK_PATH=/opt/wasi-sdk
+          cp -r guest/apps/2048 /tmp/v2048
+          # Variant A: noinline the small helpers (prevent aggressive O3 inlining)
+          cp -r /tmp/v2048 /tmp/vA
+          sed -i 's/uint32_t SlideLine(uint32_t\* line, uint32_t count)/__attribute__((noinline)) uint32_t SlideLine(uint32_t* line, uint32_t count)/' /tmp/vA/game2048_app.cpp
+          sed -i 's/void Transpose(uint32_t (\*board)\[kGridSize\])/__attribute__((noinline)) void Transpose(uint32_t (*board)[kGridSize])/' /tmp/vA/game2048_app.cpp
+          sed -i 's/void ReverseRows(uint32_t (\*board)\[kGridSize\])/__attribute__((noinline)) void ReverseRows(uint32_t (*board)[kGridSize])/' /tmp/vA/game2048_app.cpp
+          # Variant B: TileColor switch -> lookup table
+          cp -r /tmp/v2048 /tmp/vB
+          python3 - <<'PY'
+import re
+p="/tmp/vB/game2048_app.cpp"
+s=open(p).read()
+table='''micropixel::Color TileColor(uint32_t value) {
+    static const micropixel::Color palette[12] = {
+        micropixel::Color::Rgb(237U, 194U, 46U),
+        micropixel::Color::Rgb(238U, 228U, 218U),
+        micropixel::Color::Rgb(237U, 224U, 200U),
+        micropixel::Color::Rgb(242U, 177U, 121U),
+        micropixel::Color::Rgb(245U, 149U, 99U),
+        micropixel::Color::Rgb(246U, 124U, 95U),
+        micropixel::Color::Rgb(246U, 94U, 59U),
+        micropixel::Color::Rgb(237U, 207U, 114U),
+        micropixel::Color::Rgb(237U, 204U, 97U),
+        micropixel::Color::Rgb(237U, 200U, 80U),
+        micropixel::Color::Rgb(237U, 197U, 63U),
+        micropixel::Color::Rgb(237U, 194U, 46U),
+    };
+    uint32_t index = 0U;
+    while (value > 1U && index < 11U) { value >>= 1U; index += 1U; }
+    return palette[index];
+}'''
+start=s.index("micropixel::Color TileColor(uint32_t value) {")
+end=s.index("micropixel::Color TileTextColor(uint32_t value) {")
+s=s[:start]+table+"\n\n"+s[end:]
+open(p,"w").write(s)
+print("variant B written")
+PY
+          for v in A B; do
+            echo "########## VARIANT $v (opt-level=3)"
+            python tools/micropixel build /tmp/v$v --aot-target xtensa --output-dir /tmp/out-$v 2>&1 | tail -4
+            echo "variant-$v exit=${PIPESTATUS[0]}"
+          done
+          echo "=========== VARIANTS DONE"
