@@ -90,13 +90,16 @@ esp_err_t InitializeDisplayHardware(BoardHardware& hardware, esp32_s3_common::La
         status = esp_lcd_panel_init(state.panel);
     }
     // The 240x320 portrait panel is rotated to the 320x240 landscape Host UI
-    // profile. ILI9341 modules generally do not need color inversion; if the
-    // image appears photographic-negative, toggle the invert call below.
+    // profile. Verified on the LCDWIKI ES3C28P sample: the panel needs color
+    // inversion (photographic-negative otherwise) and no horizontal mirror.
     if (status == ESP_OK) {
         status = esp_lcd_panel_swap_xy(state.panel, true);
     }
     if (status == ESP_OK) {
-        status = esp_lcd_panel_mirror(state.panel, true, false);
+        status = esp_lcd_panel_mirror(state.panel, false, false);
+    }
+    if (status == ESP_OK) {
+        status = esp_lcd_panel_invert_color(state.panel, true);
     }
     if (status == ESP_OK) {
         status = esp_lcd_panel_disp_on_off(state.panel, true);
@@ -120,7 +123,7 @@ esp_err_t InitializeTouch(BoardHardware& hardware, esp32_s3_common::Landscape320
     touch_config.levels.reset = 0;
     touch_config.levels.interrupt = 0;
     touch_config.flags.swap_xy = true;
-    touch_config.flags.mirror_x = true;
+    touch_config.flags.mirror_x = false;
     touch_config.flags.mirror_y = false;
     esp_lcd_panel_io_i2c_config_t io_config{};
     io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS;
