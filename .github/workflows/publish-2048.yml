@@ -1,0 +1,142 @@
+name: Publish 2048 to MicroPixel Store
+
+# ============================================================
+#  云端发布 2048 到 MicroPixel App Store。
+#
+#  用法：
+#  1) 先在仓库 Settings -> Secrets and variables -> Actions
+#     添加 MICROPIXEL_PUBLISH_TOKEN（开发者发布 token）
+#  2) 打开仓库 Actions 页 -> "Publish 2048 to MicroPixel Store"
+#     -> Run workflow
+#  3) 构建双架构 wamrc（riscv32 + xtensa）后执行
+#     micropixel publish guest/apps/2048，输出 url/editUrl
+# ============================================================
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-2048
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    container:
+      image: espressif/idf:release-v6.1   # 含 ESP-IDF 6.1，构建 Xtensa wamrc 用
+      options: --user root
+    env:
+      IDF_PATH: /opt/esp/idf
+      WASI_SDK_PATH: /opt/wasi-sdk
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Allow git in container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install build tools (cmake, ninja, gcc, node)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake ninja-build ca-certificates nodejs npm
+
+      - name: Install WASI SDK 33
+        run: |
+          mkdir -p /opt/wasi-sdk
+          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz -o /tmp/wasi.tar.gz
+          tar -xzf /tmp/wasi.tar.gz -C /opt/wasi-sdk --strip-components=1
+          rm -f /tmp/wasi.tar.gz
+          /opt/wasi-sdk/bin/clang --version | head -1
+
+      - name: Install Python deps into IDF environment
+        run: |
+          . /opt/esp/idf/export.sh
+          python -m pip install -r requirements-dev.txt
+
+      # ---------- riscv32 wamrc（host LLVM 18.1.8 + RISCV 后端） ----------
+      - name: Restore riscv32 LLVM build cache
+        id: riscv-llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/tools/llvm-riscv/llvm-build
+          key: publish-2048-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            publish-2048-llvm-riscv-
+
+      - name: Build riscv32 wamrc (one-time, heavy LLVM build)
+        run: |
+          set -euo pipefail
+          wamr_root="$GITHUB_WORKSPACE/firmware/espressif/components/wasm-micro-runtime"
+          work="$GITHUB_WORKSPACE/build/tools/llvm-riscv"
+          mkdir -p "$work"
+          llvm_src="$work/llvm-project"
+          llvm_build="$work/llvm-build"
+          wamrc_build="$work/wamrc-build"
+          if [ ! -f "$llvm_build/lib/libLLVMCore.a" ]; then
+            git clone --depth 1 --branch llvmorg-18.1.8 https://github.com/llvm/llvm-project.git "$llvm_src"
+            cmake -S "$llvm_src/llvm" -B "$llvm_build" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DLLVM_TARGETS_TO_BUILD=RISCV \
+              -DLLVM_ENABLE_PROJECTS= \
+              -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
+              -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_TERMINFO=OFF \
+              -DLLVM_BUILD_TOOLS=OFF
+            cmake --build "$llvm_build" --target llvm-libraries --parallel 2
+          fi
+          rm -rf "$wamrc_build"
+          cmake -S "$wamr_root/wamr-compiler" -B "$wamrc_build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWAMR_BUILD_PLATFORM=linux \
+            -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 \
+            -DWAMR_BUILD_SIMD=0 \
+            -DLLVM_DIR="$llvm_build/lib/cmake/llvm"
+          cmake --build "$wamrc_build" --parallel 2
+          mkdir -p "$GITHUB_WORKSPACE/build/tools/wamrc-riscv"
+          cp "$wamrc_build/wamrc" "$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc"
+          "$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc" --version
+
+      - name: Save riscv32 LLVM build cache
+        if: steps.riscv-llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/tools/llvm-riscv/llvm-build
+          key: publish-2048-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+
+      # ---------- xtensa wamrc（复用 es3c28p 构建缓存） ----------
+      - name: Restore Xtensa LLVM build cache
+        id: xtensa-llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            es3c28p-wamrc-llvm-
+
+      - name: Build Xtensa wamrc
+        run: |
+          . /opt/esp/idf/export.sh
+          bash tools/build_wamrc_xtensa.sh
+          build/tools/wamrc-xtensa/wamrc --version
+
+      - name: Save Xtensa LLVM build cache
+        if: steps.xtensa-llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+
+      # ---------- 发布 ----------
+      - name: Publish 2048 app
+        run: |
+          set -euo pipefail
+          . /opt/esp/idf/export.sh
+          export WASI_SDK_PATH=/opt/wasi-sdk
+          export WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc"
+          export XTENSA_WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-xtensa/wamrc"
+          export MICROPIXEL_PUBLISH_TOKEN="${{ secrets.MICROPIXEL_PUBLISH_TOKEN }}"
+          python tools/micropixel publish guest/apps/2048
