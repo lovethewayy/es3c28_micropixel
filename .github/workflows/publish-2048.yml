@@ -69,6 +69,7 @@ jobs:
             publish-2048-llvm-riscv-
 
       - name: Build riscv32 wamrc (one-time, heavy LLVM build)
+        shell: bash
         run: |
           set -euo pipefail
           wamr_root="$GITHUB_WORKSPACE/firmware/espressif/components/wasm-micro-runtime"
@@ -118,6 +119,7 @@ jobs:
             es3c28p-wamrc-llvm-
 
       - name: Build Xtensa wamrc
+        shell: bash
         run: |
           . /opt/esp/idf/export.sh
           bash tools/build_wamrc_xtensa.sh
@@ -132,6 +134,7 @@ jobs:
 
       # ---------- 发布 ----------
       - name: Publish 2048 app
+        shell: bash
         run: |
           set -euo pipefail
           . /opt/esp/idf/export.sh
