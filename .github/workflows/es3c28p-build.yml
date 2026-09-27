@@ -79,8 +79,8 @@ jobs:
         run: |
           . /opt/esp/idf/export.sh
           export WASI_SDK_PATH=/opt/wasi-sdk
-          # 云端无 Remote-Control 服务器地址；生成离线镜像即可本地运行。
-          export MICROPIXEL_RELEASE_ALLOW_OFFLINE=1
+          # Official MicroPixel Control endpoint; enables Remote Control pairing.
+          export MICROPIXEL_REMOTE_CONTROL_HOST=quic.micropixel.ai
           bash tools/s3.sh build-release es3c28p
 
       - name: Upload full flashable image
