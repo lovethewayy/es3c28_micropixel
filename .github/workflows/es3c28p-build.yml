@@ -12,8 +12,6 @@ name: Build ES3C28P firmware (download bin)
 # ============================================================
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
 
 concurrency:
   group: es3c28p-build-${{ github.ref }}

@@ -124,7 +124,7 @@ esp_err_t InitializeTouch(BoardHardware& hardware, esp32_s3_common::Landscape320
     touch_config.levels.interrupt = 0;
     touch_config.flags.swap_xy = true;
     touch_config.flags.mirror_x = false;
-    touch_config.flags.mirror_y = false;
+    touch_config.flags.mirror_y = true;
     esp_lcd_panel_io_i2c_config_t io_config{};
     io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS;
     io_config.scl_speed_hz = 100000;
