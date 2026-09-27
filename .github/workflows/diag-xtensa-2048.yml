@@ -45,38 +45,39 @@ jobs:
           bash tools/build_wamrc_xtensa.sh
           build/tools/wamrc-xtensa/wamrc --version
 
-      - name: Compile 2048 wasm (xtensa path)
+      - name: Compile 2048 wasm only (skip AOT)
         run: |
           set -euo pipefail
           . /opt/esp/idf/export.sh
           export WASI_SDK_PATH=/opt/wasi-sdk
-          export WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-xtensa/wamrc"
-          # Compile only (no publish) - generates wasm + runs xtensa wamrc.
-          # Capture full stderr so the LLVM crash reason is visible.
-          python tools/micropixel package guest/apps/2048 \
-            --profile release \
+          # Build wasm only (AOT compilation will fail; wasm survives).
+          WDIR=build/diag-xtensa
+          rm -rf "$WDIR"
+          python tools/micropixel build guest/apps/2048 \
             --aot-target xtensa \
-            --output-dir build/diag-xtensa \
-            --output build/diag-xtensa.bundle.bin 2>&1 | tee /tmp/diag.log
-        continue-on-error: true
+            --output-dir "$WDIR" 2>&1 | tail -8 || true
+          ls -la "$WDIR"/*.wasm 2>/dev/null || echo "wasm not found"
 
-      - name: Show crash detail (if any)
-        if: always()
+      - name: Flag sweep - find what crashes
         run: |
-          echo "===== FULL DIAG LOG (last 80 lines) ====="
-          tail -80 /tmp/diag.log
-          echo "===== wasm info ====="
-          ls -la build/diag-xtensa/ 2>/dev/null || true
-          echo "===== try direct wamrc with stderr ====="
-          if [ -f build/diag-xtensa/game2048.wasm ]; then
-            build/tools/wamrc-xtensa/wamrc \
-              --target=xtensa --cpu=esp32s3 \
-              --bounds-checks=1 --enable-memory-profiling \
-              --disable-ref-types --disable-simd \
-              --opt-level=3 --call-stack-features=ip,func-idx \
-              --size-level=0 --enable-dump-call-stack \
-              -o /tmp/game2048.aot \
-              build/diag-xtensa/game2048.wasm 2>&1 | head -60
-          else
-            echo "wasm not produced; check log above"
-          fi
+          set +e
+          WAMRC=build/tools/wamrc-xtensa/wamrc
+          WASM=build/diag-xtensa/game2048.wasm
+          ls -la "$WASM" 2>/dev/null || { echo "NO WASM"; exit 0; }
+          BASE=(--target=xtensa --cpu=esp32s3 --bounds-checks=1 --enable-memory-profiling --disable-ref-types --disable-simd)
+          run_case() {
+            local name="$1"; shift
+            echo "########## CASE: $name"
+            "$WAMRC" "${BASE[@]}" "$@" -o /tmp/test.aot "$WASM" 2>&1 | head -8
+            echo "exit=${PIPESTATUS[0]}"
+          }
+          run_case "full (opt3 callstack size0 dump)" --opt-level=3 --call-stack-features=ip,func-idx --size-level=0 --enable-dump-call-stack
+          run_case "no dump-call-stack" --opt-level=3 --call-stack-features=ip,func-idx --size-level=0
+          run_case "no call-stack-features" --opt-level=3 --size-level=0
+          run_case "no callstack no dump" --opt-level=3 --size-level=0
+          run_case "opt-level=0" --opt-level=0 --size-level=0
+          run_case "opt-level=1" --opt-level=1 --size-level=0
+          run_case "opt-level=2" --opt-level=2 --size-level=0
+          run_case "size-level=3 (like other apps)" --opt-level=3 --call-stack-features=ip,func-idx --size-level=3
+          run_case "minimal" --opt-level=3
+          echo "=========== DONE"
