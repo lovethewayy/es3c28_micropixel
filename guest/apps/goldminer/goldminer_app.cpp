@@ -19,7 +19,6 @@ namespace math = micropixel::math;
 namespace {
 
 constexpr int32_t kCanvasWidth = 720;
-constexpr int32_t kCanvasHeight = 720;
 constexpr int32_t kGroundY = 110;      // Top of the underground.
 constexpr int32_t kMachineX = 360;     // Winch anchor on the surface.
 constexpr int32_t kMachineY = 64;      // Winch vertical position.
