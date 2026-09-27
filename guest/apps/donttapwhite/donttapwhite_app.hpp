@@ -1,0 +1,10 @@
+#ifndef MICROPIXEL_APP_DONTTAPWHITE_DONTTAPWHITE_APP_HPP
+#define MICROPIXEL_APP_DONTTAPWHITE_DONTTAPWHITE_APP_HPP
+
+namespace donttapwhite {
+
+int DontTapWhiteAppMain();
+
+}  // namespace donttapwhite
+
+#endif  // MICROPIXEL_APP_DONTTAPWHITE_DONTTAPWHITE_APP_HPP

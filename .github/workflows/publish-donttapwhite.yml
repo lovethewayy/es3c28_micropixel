@@ -1,0 +1,119 @@
+name: Publish Don't Tap White to MicroPixel Store
+
+# ============================================================
+#  云端发布 2048 到 MicroPixel App Store。
+#
+#  用法：
+#  1) 先在仓库 Settings -> Secrets and variables -> Actions
+#     添加 MICROPIXEL_PUBLISH_TOKEN（开发者发布 token）
+#  2) 打开仓库 Actions 页 -> "Publish Don't Tap White to MicroPixel Store"
+#     -> Run workflow
+#  3) 构建双架构 wamrc（riscv32 + xtensa）后执行
+#     micropixel publish guest/apps/donttapwhite，输出 url/editUrl
+# ============================================================
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-donttapwhite
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    container:
+      image: espressif/idf:release-v6.1   # 含 ESP-IDF 6.1，构建 Xtensa wamrc 用
+      options: --user root
+    env:
+      IDF_PATH: /opt/esp/idf
+      WASI_SDK_PATH: /opt/wasi-sdk
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Allow git in container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install build tools (cmake, ninja, gcc, node)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake ninja-build ca-certificates nodejs npm
+
+      - name: Install WASI SDK 33
+        run: |
+          mkdir -p /opt/wasi-sdk
+          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz -o /tmp/wasi.tar.gz
+          tar -xzf /tmp/wasi.tar.gz -C /opt/wasi-sdk --strip-components=1
+          rm -f /tmp/wasi.tar.gz
+          /opt/wasi-sdk/bin/clang --version | head -1
+
+      - name: Install Python deps into IDF environment
+        run: |
+          . /opt/esp/idf/export.sh
+          python -m pip install -r requirements-dev.txt
+
+      # ---------- riscv32 wamrc（host LLVM 18.1.8 + RISCV 后端） ----------
+      - name: Restore riscv32 LLVM build cache
+        id: riscv-llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          # Cache the repackaged LLVM build dir only (self-contained; no sources).
+          path: build/tools/llvm-riscv/llvm/build
+          key: publish-donttapwhite-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            publish-donttapwhite-llvm-riscv-
+
+      - name: Build riscv32 wamrc (one-time, heavy LLVM build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/build_wamrc_riscv.sh
+
+      - name: Save riscv32 LLVM build cache
+        if: steps.riscv-llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/tools/llvm-riscv/llvm/build
+          key: publish-donttapwhite-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+
+      # ---------- xtensa wamrc（复用 es3c28p 构建缓存） ----------
+      - name: Restore Xtensa LLVM build cache
+        id: xtensa-llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            es3c28p-wamrc-llvm-
+
+      - name: Build Xtensa wamrc
+        shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          bash tools/build_wamrc_xtensa.sh
+          build/tools/wamrc-xtensa/wamrc --version
+
+      - name: Save Xtensa LLVM build cache
+        if: steps.xtensa-llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+
+      # ---------- 发布 ----------
+      - name: Publish Don't Tap White app
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /opt/esp/idf/export.sh
+          export WASI_SDK_PATH=/opt/wasi-sdk
+          export WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc"
+          export XTENSA_WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-xtensa/wamrc"
+          export MICROPIXEL_PUBLISH_TOKEN="${{ secrets.MICROPIXEL_PUBLISH_TOKEN }}"
+          python tools/micropixel publish guest/apps/donttapwhite
