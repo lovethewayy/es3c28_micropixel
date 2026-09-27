@@ -71,7 +71,7 @@ cmake -S "$wamr_root/wamr-compiler" -B "$output_dir" \
     -DWAMR_BUILD_PLATFORM="$host_platform" \
     -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 \
     -DWAMR_BUILD_SIMD=0 \
-    -DLLVM_DIR="$llvm_config"
+    -DLLVM_DIR="$(dirname "$llvm_config")"
 cmake --build "$output_dir" --parallel 2
 
 "$output_dir/wamrc" --version
