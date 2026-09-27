@@ -7,15 +7,16 @@
 namespace micropixel::platform::es3c28p_esp32s3 {
 
 // ES3C28P audio: ES8311 codec on the shared I2C bus (address 0x18), I2S data
-// MCK=IO4 / SCK=IO5 / DO=IO6 / LRC=IO7 / DI=IO8, and the FM8002E amplifier
-// enable on IO1 (active low). DO/DI follows the LCDWIKI Arduino and
-// MicroPython reference docs; the ESP-IDF demo sheet lists them swapped, so
-// verify audio output and flip .data_out/.data_in if silent.
+// MCK=IO4 / SCK=IO5 / DO=IO8 / LRC=IO7 / DI=IO6, and the FM8002E amplifier
+// enable on IO1 (active low). Verified against the LCDWIKI 2.8" ES3C28P
+// official pin table: IO8 is the I2S data OUT (ESP32->codec DAC) and IO6 is
+// the data IN (codec ADC->ESP32). The Arduino/MicroPython docs list them the
+// other way; using that swapped order left the codec DAC without data, which
+// the amplifier turned into noise bursts (firecracker sound).
 //
 // The amplifier is driven through the external SetAmplifier setter (not the
 // codec driver's pa_pin), so the PA enable latches only once the I2S data path
-// is actually producing samples. Driving IO1 directly from the codec driver
-// caused a noise burst (firecracker sound) at start/stop.
+// is actually producing samples.
 I2sAudioSink::I2sAudioSink(BoardHardware& hardware)
     : hardware_(hardware),
       sink_(
@@ -27,7 +28,7 @@ I2sAudioSink::I2sAudioSink(BoardHardware& hardware)
               .master_clock = GPIO_NUM_4,
               .bit_clock = GPIO_NUM_5,
               .word_select = GPIO_NUM_7,
-              .data_out = GPIO_NUM_6,
+              .data_out = GPIO_NUM_8,
               .amplifier_enable = GPIO_NUM_NC,
               .amplifier_setter = SetAmplifier,
               .amplifier_context = this,

@@ -79,7 +79,10 @@ esp_err_t InitializeDisplayHardware(BoardHardware& hardware, esp32_s3_common::La
     // TFT_RST is tied to CHIP_PU on the ES3C28P, so there is no dedicated reset
     // GPIO; esp_lcd_panel_reset() still issues the SW reset command over SPI.
     esp_lcd_panel_dev_config_t panel_config{};
-    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+    // The LCDWIKI ES3C28P ILI9341 panel is BGR-ordered; RGB made red and blue
+    // swap on screen. BGR drives the MADCTL bit so RGB565 pixels decode with
+    // correct channel order.
+    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     panel_config.bits_per_pixel = 16;
     panel_config.reset_gpio_num = GPIO_NUM_NC;
     status = esp_lcd_new_panel_ili9341(state.panel_io, &panel_config, &state.panel);

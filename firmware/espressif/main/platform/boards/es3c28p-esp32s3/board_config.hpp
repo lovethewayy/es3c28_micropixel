@@ -17,7 +17,7 @@ struct ExpansionGpioLine final {
 //     MISO=IO13, RST=CHIP_PU (shared), BL=IO45 (high = on)
 //   Touch (FT6336G, I2C): SDA=IO16, SCL=IO15, RST=IO18, INT=IO17
 //   Audio (ES8311 + FM8002E): EN=IO1 (low = enable), I2S MCK=IO4, SCK=IO5,
-//     DO=IO6, LRC=IO7, DI=IO8
+//     DO=IO8, LRC=IO7, DI=IO6   (per LCDWIKI official pin table)
 //   SD card (SDIO 1-bit): CLK=IO38, CMD=IO40, D0=IO39, D1=IO41, D2=IO48, D3=IO47
 //   Battery ADC=IO9, RGB LED=IO42, USB=IO19/IO20, UART0=IO43/IO44, BOOT=IO0
 //
