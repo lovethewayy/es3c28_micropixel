@@ -123,8 +123,10 @@ esp_err_t InitializeTouch(BoardHardware& hardware, esp32_s3_common::Landscape320
     touch_config.levels.reset = 0;
     touch_config.levels.interrupt = 0;
     touch_config.flags.swap_xy = true;
-    touch_config.flags.mirror_x = false;
-    touch_config.flags.mirror_y = true;
+    // Diagonal touch flip verified on hardware: tapping top-left landed at
+    // bottom-right, so both axes needed mirroring relative to the prior build.
+    touch_config.flags.mirror_x = true;
+    touch_config.flags.mirror_y = false;
     esp_lcd_panel_io_i2c_config_t io_config{};
     io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS;
     io_config.scl_speed_hz = 100000;

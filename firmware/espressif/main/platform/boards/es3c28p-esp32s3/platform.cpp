@@ -37,7 +37,7 @@ class Es3c28pEsp32S3Board final : public Board {
         : state_(TaskState(input_state_)),
           graphics_context_{.engine = &state_.guest_graphics, .hooks = state_.ui.GraphicsHooks()},
           graphics_(lvgl::MakeGuestGraphicsOperations(graphics_context_)),
-          audio_output_(),
+          audio_output_(hardware_),
           presentation_(
               state_, kTag,
               [](void* context, int percent) {

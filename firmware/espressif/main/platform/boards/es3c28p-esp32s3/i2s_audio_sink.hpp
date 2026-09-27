@@ -10,9 +10,11 @@ class I2cExecutor;
 
 namespace micropixel::platform::es3c28p_esp32s3 {
 
+class BoardHardware;
+
 class I2sAudioSink final : public audio::AudioOutputPeripheral {
    public:
-    I2sAudioSink();
+    explicit I2sAudioSink(BoardHardware& hardware);
 
     [[nodiscard]] esp_err_t Configure(i2c_master_bus_handle_t bus, buses::I2cExecutor& executor);
     [[nodiscard]] esp_err_t Initialize() override { return sink_.Initialize(); }
@@ -28,6 +30,9 @@ class I2sAudioSink final : public audio::AudioOutputPeripheral {
     [[nodiscard]] uint32_t SampleRate() const override { return sink_.SampleRate(); }
 
    private:
+    static esp_err_t SetAmplifier(void* context, bool enabled);
+
+    BoardHardware& hardware_;
     audio::Es8311I2sAudioSink sink_;
 };
 

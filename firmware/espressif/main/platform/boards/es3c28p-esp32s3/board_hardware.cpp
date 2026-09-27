@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_check.h"
 
@@ -13,6 +14,7 @@ constexpr i2c_port_num_t kI2cPort = I2C_NUM_0;
 constexpr gpio_num_t kI2cSda = GPIO_NUM_16;
 constexpr gpio_num_t kI2cScl = GPIO_NUM_15;
 constexpr gpio_num_t kBacklight = GPIO_NUM_45;
+constexpr gpio_num_t kAmplifierEnable = GPIO_NUM_1;
 constexpr ledc_channel_t kBacklightChannel = LEDC_CHANNEL_0;
 constexpr ledc_timer_t kBacklightTimer = LEDC_TIMER_1;
 constexpr uint32_t kBacklightMaximumDuty = (1U << 10U) - 1U;
@@ -52,7 +54,28 @@ esp_err_t BoardHardware::Initialize() {
     channel_config.flags.output_invert = false;
     ESP_RETURN_ON_ERROR(ledc_channel_config(&channel_config), kTag, "configure backlight channel failed");
     brightness_initialized_ = true;
+
+    // FM8002E amplifier enable (IO1, active low): default disabled (high)
+    // until the audio sink opens the I2S data path, preventing the noise burst
+    // heard when the codec driver latched this pin before audio was ready.
+    gpio_config_t amplifier_config{};
+    amplifier_config.pin_bit_mask = 1ULL << static_cast<uint32_t>(kAmplifierEnable);
+    amplifier_config.mode = GPIO_MODE_OUTPUT;
+    amplifier_config.pull_up_en = GPIO_PULLUP_DISABLE;
+    amplifier_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    amplifier_config.intr_type = GPIO_INTR_DISABLE;
+    ESP_RETURN_ON_ERROR(gpio_config(&amplifier_config), kTag, "configure amplifier enable failed");
+    ESP_RETURN_ON_ERROR(gpio_set_level(kAmplifierEnable, 1), kTag, "disable amplifier at boot failed");
+    amplifier_initialized_ = true;
     return ESP_OK;
+}
+
+esp_err_t BoardHardware::SetAmplifier(bool enabled) {
+    if (!amplifier_initialized_) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    // IO1 is active low: enabled -> drive low, disabled -> drive high.
+    return gpio_set_level(kAmplifierEnable, enabled ? 0 : 1);
 }
 
 esp_err_t BoardHardware::SetBrightness(int percent) {
