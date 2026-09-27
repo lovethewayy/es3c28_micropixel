@@ -63,9 +63,8 @@ jobs:
         id: riscv-llvm-cache
         uses: actions/cache/restore@v4
         with:
-          # Cache the whole work dir: LLVMConfig.cmake references the source tree
-          # modules (LLVM-Config.cmake), so sources + build must be cached together.
-          path: build/tools/llvm-riscv
+          # Cache the repackaged LLVM build dir only (self-contained; no sources).
+          path: build/tools/llvm-riscv/llvm/build
           key: publish-2048-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
           restore-keys: |
             publish-2048-llvm-riscv-
@@ -74,55 +73,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          wamr_root="$GITHUB_WORKSPACE/firmware/espressif/components/wasm-micro-runtime"
-          work="$GITHUB_WORKSPACE/build/tools/llvm-riscv"
-          mkdir -p "$work"
-          llvm_src="$work/llvm-project"
-          llvm_build="$work/llvm-build"
-          wamrc_build="$work/wamrc-build"
-          if [ ! -f "$llvm_build/lib/libLLVMCore.a" ]; then
-            git clone --depth 1 --branch llvmorg-18.1.8 https://github.com/llvm/llvm-project.git "$llvm_src"
-            cmake -S "$llvm_src/llvm" -B "$llvm_build" -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DLLVM_TARGETS_TO_BUILD=RISCV \
-              -DLLVM_ENABLE_PROJECTS= \
-              -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
-              -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_TERMINFO=OFF \
-              -DLLVM_BUILD_TOOLS=OFF
-            cmake --build "$llvm_build" --target llvm-libraries --parallel 2
-          elif [ ! -d "$llvm_src/llvm/cmake/modules" ]; then
-            # LLVM was restored from cache (build only): LLVMConfig.cmake references
-            # source-tree modules, so re-clone the sources (fast shallow clone).
-            git clone --depth 1 --branch llvmorg-18.1.8 https://github.com/llvm/llvm-project.git "$llvm_src"
-          fi
-          rm -rf "$wamrc_build"
-          cmake -S "$wamr_root/wamr-compiler" -B "$wamrc_build" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DWAMR_BUILD_PLATFORM=linux \
-            -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 \
-            -DWAMR_BUILD_SIMD=0 \
-            -DLLVM_DIR="$llvm_build/lib/cmake/llvm"
-          cmake --build "$wamrc_build" --parallel 2
-          mkdir -p "$GITHUB_WORKSPACE/build/tools/wamrc-riscv"
-          cp "$wamrc_build/wamrc" "$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc"
-          "$GITHUB_WORKSPACE/build/tools/wamrc-riscv/wamrc" --version
-
-      - name: Check riscv32 cache completeness
-        id: riscv-cache-check
-        run: |
-          if [ -d "build/tools/llvm-riscv/llvm-project/llvm/cmake/modules" ]; then
-            echo "complete=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "complete=false" >> "$GITHUB_OUTPUT"
-          fi
+          bash tools/build_wamrc_riscv.sh
 
       - name: Save riscv32 LLVM build cache
-        # Save only when the cache was incomplete (build restored without sources),
-        # so the next run restores the complete directory.
-        if: steps.riscv-cache-check.outputs.complete == 'false'
+        if: steps.riscv-llvm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: build/tools/llvm-riscv
+          path: build/tools/llvm-riscv/llvm/build
           key: publish-2048-llvm-riscv-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
 
       # ---------- xtensa wamrc（复用 es3c28p 构建缓存） ----------
