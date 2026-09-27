@@ -66,7 +66,9 @@ enum class Direction : uint8_t { kUp, kDown, kLeft, kRight };
 
 // Slides one line toward index 0 and merges equal neighbours.
 // Returns the number of points earned.
-uint32_t SlideLine(uint32_t* line, uint32_t count) {
+// NOTE: noinline keeps these small helpers out of the O3 inliner; LLVM's
+// Xtensa backend crashes when the merged 2048 hot loop is too large.
+__attribute__((noinline)) uint32_t SlideLine(uint32_t* line, uint32_t count) {
     uint32_t compact[4]{};
     uint32_t compact_count = 0U;
     for (uint32_t i = 0U; i < count; ++i) {
@@ -100,7 +102,7 @@ uint32_t SlideLine(uint32_t* line, uint32_t count) {
 
 // Transposes the board in place; toggling transpose lets SlideLine serve
 // horizontal and vertical slides with the same row-oriented code.
-void Transpose(uint32_t (*board)[kGridSize]) {
+__attribute__((noinline)) void Transpose(uint32_t (*board)[kGridSize]) {
     for (uint32_t row = 0U; row < kGridSize; ++row) {
         for (uint32_t column = row + 1U; column < kGridSize; ++column) {
             uint32_t temp = board[row][column];
@@ -110,7 +112,7 @@ void Transpose(uint32_t (*board)[kGridSize]) {
     }
 }
 
-void ReverseRows(uint32_t (*board)[kGridSize]) {
+__attribute__((noinline)) void ReverseRows(uint32_t (*board)[kGridSize]) {
     for (uint32_t row = 0U; row < kGridSize; ++row) {
         for (uint32_t a = 0U, b = kGridSize - 1U; a < b; ++a, --b) {
             uint32_t temp = board[row][a];
