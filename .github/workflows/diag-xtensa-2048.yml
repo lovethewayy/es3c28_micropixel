@@ -1,0 +1,82 @@
+name: Diagnose 2048 xtensa AOT crash
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/espressif/idf:release-v6.1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Allow git in container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends cmake ninja-build gcc g++ git python3
+
+      - name: Install WASI SDK 33
+        run: |
+          curl -fL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz -o /tmp/wasi.tar.gz
+          mkdir -p /opt/wasi-sdk
+          tar -xzf /tmp/wasi.tar.gz -C /opt/wasi-sdk --strip-components=1
+          rm -f /tmp/wasi.tar.gz
+          /opt/wasi-sdk/bin/clang --version | head -1
+
+      - name: Restore Xtensa LLVM build cache
+        id: xtensa-llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/espressif/components/wasm-micro-runtime/core/deps/llvm/build
+          key: es3c28p-wamrc-llvm-${{ hashFiles('firmware/espressif/components/wasm-micro-runtime/build-scripts/build_llvm.py') }}
+          restore-keys: |
+            es3c28p-wamrc-llvm-
+
+      - name: Build Xtensa wamrc
+        run: |
+          . /opt/esp/idf/export.sh
+          bash tools/build_wamrc_xtensa.sh
+          build/tools/wamrc-xtensa/wamrc --version
+
+      - name: Compile 2048 wasm (xtensa path)
+        run: |
+          set -euo pipefail
+          . /opt/esp/idf/export.sh
+          export WASI_SDK_PATH=/opt/wasi-sdk
+          export WAMRC="$GITHUB_WORKSPACE/build/tools/wamrc-xtensa/wamrc"
+          # Compile only (no publish) - generates wasm + runs xtensa wamrc.
+          # Capture full stderr so the LLVM crash reason is visible.
+          python tools/micropixel package guest/apps/2048 \
+            --profile release \
+            --aot-target xtensa \
+            --output-dir build/diag-xtensa \
+            --output build/diag-xtensa.bundle.bin 2>&1 | tee /tmp/diag.log
+        continue-on-error: true
+
+      - name: Show crash detail (if any)
+        if: always()
+        run: |
+          echo "===== FULL DIAG LOG (last 80 lines) ====="
+          tail -80 /tmp/diag.log
+          echo "===== wasm info ====="
+          ls -la build/diag-xtensa/ 2>/dev/null || true
+          echo "===== try direct wamrc with stderr ====="
+          if [ -f build/diag-xtensa/game2048.wasm ]; then
+            build/tools/wamrc-xtensa/wamrc \
+              --target=xtensa --cpu=esp32s3 \
+              --bounds-checks=1 --enable-memory-profiling \
+              --disable-ref-types --disable-simd \
+              --opt-level=3 --call-stack-features=ip,func-idx \
+              --size-level=0 --enable-dump-call-stack \
+              -o /tmp/game2048.aot \
+              build/diag-xtensa/game2048.wasm 2>&1 | head -60
+          else
+            echo "wasm not produced; check log above"
+          fi
