@@ -6,7 +6,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/espressif/idf:release-v6.1
+      image: espressif/idf:release-v6.1
     defaults:
       run:
         shell: bash
