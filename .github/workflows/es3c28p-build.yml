@@ -38,10 +38,10 @@ jobs:
       - name: Allow git in container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install build tools (cmake, ninja, gcc)
+      - name: Install build tools (cmake, ninja, gcc, node)
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends build-essential cmake ninja-build ca-certificates
+          apt-get install -y --no-install-recommends build-essential cmake ninja-build ca-certificates nodejs npm
 
       - name: Install WASI SDK 33
         run: |
