@@ -1563,6 +1563,11 @@ def guest_build_profile_flags(profile: str, aot_target: str) -> tuple[list[str],
         # whose generated text exceeds that range.
         aot_flags = [flag for flag in aot_flags if not flag.startswith("--size-level=")]
         aot_flags.append("--size-level=0")
+        # LLVM's Xtensa backend crashes (SIGABRT) when wamrc optimizes certain
+        # Wasm modules at opt-level=3 (reproduced with 2048: every O3 flag
+        # combination dies, all of opt-level 0/1/2 pass). Downgrade Xtensa to
+        # opt-level=2 so release builds survive; RISC-V keeps O3.
+        aot_flags = [flag if not flag.startswith("--opt-level=") else "--opt-level=2" for flag in aot_flags]
     return list(compile_flags), list(link_flags), list(aot_flags)
 
 
