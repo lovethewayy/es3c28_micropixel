@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "app_id": "micropixel.game2048",
+  "app_id": "com.lovethewayy.game2048",
   "version": "0.1.0",
   "threading": "none",
   "title": "2048",
