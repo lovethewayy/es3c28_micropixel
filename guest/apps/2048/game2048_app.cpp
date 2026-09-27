@@ -382,7 +382,7 @@ int Game2048AppMain() {
         }
     });
 
-    micropixel::Line final_line;
+    Line final_line;
     final_line.Append("2048: session finished BEST ");
     final_line.AppendUint(best);
     app.log().Info(final_line.c_str());
