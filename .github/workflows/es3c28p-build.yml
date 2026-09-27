@@ -79,8 +79,10 @@ jobs:
         run: |
           . /opt/esp/idf/export.sh
           export WASI_SDK_PATH=/opt/wasi-sdk
-          # Official MicroPixel Control endpoint; enables Remote Control pairing.
+          # Official MicroPixel Control endpoint (per upstream guidance: QUIC over UDP 443).
           export MICROPIXEL_REMOTE_CONTROL_HOST=quic.micropixel.ai
+          export MICROPIXEL_REMOTE_CONTROL_PORT=443
+          export MICROPIXEL_REMOTE_CONTROL_ALLOW_UNVERIFIED_TLS=y
           bash tools/s3.sh build-release es3c28p
 
       - name: Upload full flashable image
