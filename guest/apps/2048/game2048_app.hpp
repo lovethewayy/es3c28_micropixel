@@ -1,0 +1,10 @@
+#ifndef MICROPIXEL_APP_2048_GAME2048_APP_HPP
+#define MICROPIXEL_APP_2048_GAME2048_APP_HPP
+
+namespace game2048 {
+
+int Game2048AppMain();
+
+}  // namespace game2048
+
+#endif  // MICROPIXEL_APP_2048_GAME2048_APP_HPP

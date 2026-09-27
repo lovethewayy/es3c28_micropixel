@@ -434,7 +434,7 @@ build_apps() {
     local app
     local bundles=()
     mkdir -p "$apps_output_dir"
-    for app in sdk-demo snake maze-evil blocks tilt jump-jump gravity-balls; do
+    for app in sdk-demo snake maze-evil blocks tilt jump-jump gravity-balls 2048; do
         mkdir -p "$apps_output_dir/$app"
         WAMRC="$xtensa_wamrc" python "$workspace_root/tools/micropixel" package \
             "$workspace_root/guest/apps/$app" \
