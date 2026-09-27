@@ -136,6 +136,8 @@ for name, fn in variants.items():
         str(pathlib.Path(f"/tmp/v{name}")),
         "--aot-target",
         "xtensa",
+        "--profile",
+        "release",
         "--output-dir",
         str(out),
     ]
